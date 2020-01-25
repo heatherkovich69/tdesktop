@@ -573,8 +573,11 @@ void MainWindow::psFirstShow() {
 				LOG(("Could not get Unity Launcher entry!"));
 			}
 		} else {
-			LOG(("SNAP Environment detected, setting Launcher entry to %1-telegramdesktop.desktop!").arg(snapName));
-			_desktopFile = snapName + "_telegramdesktop.desktop";
+			LOG(("SNAP Environment detected, setting Launcher entry to %1_%2.desktop!")
+				.arg(snapName)
+				.arg(MACRO_TO_STRING(TDESKTOP_LAUNCHER_BASENAME) ".desktop"));
+			_desktopFile = snapName
+				+ "_" MACRO_TO_STRING(TDESKTOP_LAUNCHER_BASENAME) ".desktop";
 			useUnityCount=true;
 		}
 		_dbusPath = "/com/canonical/unity/launcherentry/" + QString::number(djbStringHash("application://" + _desktopFile));

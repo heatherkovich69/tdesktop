@@ -1,0 +1,92 @@
+name: Snap.
+
+on:
+  push:
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+
+jobs:
+
+  linux:
+    name: Ubuntu 18.04
+    runs-on: ubuntu-18.04
+
+    env:
+      UPLOAD_ARTIFACT: "false"
+
+    steps:
+      - name: Get repository name.
+        run: echo ::set-env name=REPO_NAME::${GITHUB_REPOSITORY##*/}
+
+      - name: Clone.
+        uses: actions/checkout@v1
+        with:
+          submodules: recursive
+
+      - name: First set up.
+        run: |
+          cd ..
+          mv $REPO_NAME temp
+          mkdir $REPO_NAME
+          mv temp $REPO_NAME/$REPO_NAME
+          cd $REPO_NAME
+
+          sudo apt-get update
+          sudo apt-get install --yes \
+            curl \
+            jq \
+            squashfs-tools \
+            locales
+          sudo locale-gen en_US.UTF-8
+
+          curl -L $(curl -H 'X-Ubuntu-Series: 16' 'https://api.snapcraft.io/api/v1/snaps/details/core' | jq '.download_url' -r) --output core.snap
+          sudo mkdir -p /snap/core
+          sudo unsquashfs -d /snap/core/current core.snap
+
+          curl -L $(curl -H 'X-Ubuntu-Series: 16' 'https://api.snapcraft.io/api/v1/snaps/details/core18' | jq '.download_url' -r) --output core18.snap
+          sudo mkdir -p /snap/core18
+          sudo unsquashfs -d /snap/core18/current core18.snap
+
+          curl -L $(curl -H 'X-Ubuntu-Series: 16' 'https://api.snapcraft.io/api/v1/snaps/details/snapcraft?channel=stable' | jq '.download_url' -r) --output snapcraft.snap
+          sudo mkdir -p /snap/snapcraft
+          sudo unsquashfs -d /snap/snapcraft/current snapcraft.snap
+
+          sudo mkdir -p /snap/bin
+          sudo sh -c 'echo "#!/bin/sh" > /snap/bin/snapcraft'
+          snap_version="$(awk '/^version:/{print $2}' /snap/snapcraft/current/meta/snap.yaml)" && sudo sh -c 'echo "export SNAP_VERSION=\"$snap_version\"" >> /snap/bin/snapcraft'
+          sudo sh -c "echo 'exec \"\$SNAP/usr/bin/python3\" \"\$SNAP/bin/snapcraft\" \"\$@\"' >> /snap/bin/snapcraft"
+          sudo chmod +x /snap/bin/snapcraft
+
+      - name: Telegram Desktop snap build.
+        run: |
+          export LANG="en_US.UTF-8"
+          export LANGUAGE="en_US:en"
+          export LC_ALL="en_US.UTF-8"
+          export PATH="/snap/bin:$PATH"
+          export SNAP="/snap/snapcraft/current"
+          export SNAP_NAME="snapcraft"
+          export SNAP_ARCH="amd64"
+
+          cd $REPO_NAME
+          snapcraft
+
+      - name: Move artifact.
+        run: |
+          cd $REPO_NAME
+
+          export ARTIFACT_NAME="$(echo telegram-desktop_*.snap)"
+          echo ::set-env name=ARTIFACT_NAME::$ARTIFACT_NAME
+
+          mkdir artifact
+          mv $ARTIFACT_NAME artifact/
+      - uses: actions/upload-artifact@master
+        if: env.UPLOAD_ARTIFACT == 'true'
+        name: Upload artifact.
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ env.REPO_NAME }}/artifact/

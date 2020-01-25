@@ -212,8 +212,14 @@ void NotificationData::setImage(const QString &imagePath) {
 	}
 
 	auto image = QImage(imagePath).convertToFormat(QImage::Format_RGBA8888);
+
+#if QT_VERSION < QT_VERSION_CHECK(5, 10, 0)
+	QByteArray imageBytes((const char*)image.constBits(),
+		image.byteCount());
+#else
 	QByteArray imageBytes((const char*)image.constBits(),
 		image.sizeInBytes());
+#endif
 
 	ImageData imageData;
 	imageData.width = image.width();
